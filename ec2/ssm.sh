@@ -1,52 +1,25 @@
 #!/bin/bash
 
-# Array to hold mappings
-# e.g. ["<environment>"]="<EC2 instance id>"
-# Bash 4+
-#declare -A mappings=(
-#  ["xxx123"]="i-1234abcd"
-#)
-
-# Array for Bash < 4
-# e.g. <environment>:<instance id>
-#
-# Add in instances here:
-#
-declare -a mappings=(
-    "xxx:i-12345abcd"
-)
+#trap quit_vault EXIT
 
 # Check if an environment has been provided
 if [ -z "$1" ]; then
-  echo "Usage: ./script.sh [stage][ec2 instance id]"
+  echo "Usage: ./ssm.sh [aws-profile][ec2 instance id]"
+  echo "e.g. ./ssm.sh spm-dev dev03"
   exit 1
 fi
 
 stage="$1"
 ec2_instance="$2"
 
-# Lookup the value in the array
-# For Bash 4+
-#iid="${mappings[$ec2_instance]}"
+# Set up the tag name/value and get ec2 instance id
+tag_name="Name"
+tag_value="$ec2_instance-SPM-Db-primary"
+echo $tag_value
+iid=$(aws-vault exec $stage -- aws ec2 describe-instances --filters "Name=tag:$tag_name,Values=$tag_value" --query "Reservations[].Instances[0].InstanceId" --output text)
 
-# Bash < 4 Loop split and get instance id ... 
-for environment in "${mappings[@]}"; do
-
-    key=${environment%%:*}
-    val=${environment#*:}
-
-    #echo "Key is: $key"
-    #echo "Value is: $val"
-
-    if [ "$key" == "$ec2_instance" ]; then
-        iid="$val"
-        break
-    fi
-done
-
-# Check if the value exists
 if [ -z "$iid" ]; then
-  echo "Error: Unmapped environment - $ec2_instance"
+  echo "Error: unable to find an instance id for $ec2_instance in account $stage"
   exit 1
 fi
 
